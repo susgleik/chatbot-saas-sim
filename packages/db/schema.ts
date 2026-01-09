@@ -11,6 +11,7 @@ import {
   json,
   jsonb,
   pgEnum,
+  pgSchema,
   pgTable,
   text,
   timestamp,
@@ -19,6 +20,12 @@ import {
   vector,
 } from 'drizzle-orm/pg-core'
 import { DEFAULT_FREE_CREDITS, TAG_SLOTS } from './constants'
+
+// ============================================
+// SCHEMA CONFIGURATION
+// ============================================
+// Use sim_engine schema to separate Sim.ai tables from business logic
+export const simEngine = pgSchema('sim_engine')
 
 // Custom tsvector type for full-text search
 export const tsvector = customType<{
@@ -29,7 +36,7 @@ export const tsvector = customType<{
   },
 })
 
-export const user = pgTable('user', {
+export const user = simEngine.table('user', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
@@ -41,7 +48,7 @@ export const user = pgTable('user', {
   isSuperUser: boolean('is_super_user').notNull().default(false),
 })
 
-export const session = pgTable(
+export const session = simEngine.table(
   'session',
   {
     id: text('id').primaryKey(),
@@ -64,7 +71,7 @@ export const session = pgTable(
   })
 )
 
-export const account = pgTable(
+export const account = simEngine.table(
   'account',
   {
     id: text('id').primaryKey(),
@@ -97,7 +104,7 @@ export const account = pgTable(
   })
 )
 
-export const verification = pgTable(
+export const verification = simEngine.table(
   'verification',
   {
     id: text('id').primaryKey(),
@@ -113,7 +120,7 @@ export const verification = pgTable(
   })
 )
 
-export const workflowFolder = pgTable(
+export const workflowFolder = simEngine.table(
   'workflow_folder',
   {
     id: text('id').primaryKey(),
@@ -141,7 +148,7 @@ export const workflowFolder = pgTable(
   })
 )
 
-export const workflow = pgTable(
+export const workflow = simEngine.table(
   'workflow',
   {
     id: text('id').primaryKey(),
@@ -169,7 +176,7 @@ export const workflow = pgTable(
   })
 )
 
-export const workflowBlocks = pgTable(
+export const workflowBlocks = simEngine.table(
   'workflow_blocks',
   {
     id: text('id').primaryKey(),
@@ -203,7 +210,7 @@ export const workflowBlocks = pgTable(
   })
 )
 
-export const workflowEdges = pgTable(
+export const workflowEdges = simEngine.table(
   'workflow_edges',
   {
     id: text('id').primaryKey(),
@@ -235,7 +242,7 @@ export const workflowEdges = pgTable(
   })
 )
 
-export const workflowSubflows = pgTable(
+export const workflowSubflows = simEngine.table(
   'workflow_subflows',
   {
     id: text('id').primaryKey(),
@@ -255,7 +262,7 @@ export const workflowSubflows = pgTable(
   })
 )
 
-export const waitlist = pgTable('waitlist', {
+export const waitlist = simEngine.table('waitlist', {
   id: text('id').primaryKey(),
   email: text('email').notNull().unique(),
   status: text('status').notNull().default('pending'), // pending, approved, rejected
@@ -263,7 +270,7 @@ export const waitlist = pgTable('waitlist', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-export const workflowExecutionSnapshots = pgTable(
+export const workflowExecutionSnapshots = simEngine.table(
   'workflow_execution_snapshots',
   {
     id: text('id').primaryKey(),
@@ -285,7 +292,7 @@ export const workflowExecutionSnapshots = pgTable(
   })
 )
 
-export const workflowExecutionLogs = pgTable(
+export const workflowExecutionLogs = simEngine.table(
   'workflow_execution_logs',
   {
     id: text('id').primaryKey(),
@@ -342,7 +349,7 @@ export const workflowExecutionLogs = pgTable(
   })
 )
 
-export const pausedExecutions = pgTable(
+export const pausedExecutions = simEngine.table(
   'paused_executions',
   {
     id: text('id').primaryKey(),
@@ -367,7 +374,7 @@ export const pausedExecutions = pgTable(
   })
 )
 
-export const resumeQueue = pgTable(
+export const resumeQueue = simEngine.table(
   'resume_queue',
   {
     id: text('id').primaryKey(),
@@ -394,7 +401,7 @@ export const resumeQueue = pgTable(
   })
 )
 
-export const environment = pgTable('environment', {
+export const environment = simEngine.table('environment', {
   id: text('id').primaryKey(), // Use the user id as the key
   userId: text('user_id')
     .notNull()
@@ -404,7 +411,7 @@ export const environment = pgTable('environment', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-export const workspaceEnvironment = pgTable(
+export const workspaceEnvironment = simEngine.table(
   'workspace_environment',
   {
     id: text('id').primaryKey(),
@@ -420,7 +427,7 @@ export const workspaceEnvironment = pgTable(
   })
 )
 
-export const workspaceBYOKKeys = pgTable(
+export const workspaceBYOKKeys = simEngine.table(
   'workspace_byok_keys',
   {
     id: text('id').primaryKey(),
@@ -442,7 +449,7 @@ export const workspaceBYOKKeys = pgTable(
   })
 )
 
-export const settings = pgTable('settings', {
+export const settings = simEngine.table('settings', {
   id: text('id').primaryKey(), // Use the user id as the key
   userId: text('user_id')
     .notNull()
@@ -483,7 +490,7 @@ export const settings = pgTable('settings', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-export const workflowSchedule = pgTable(
+export const workflowSchedule = simEngine.table(
   'workflow_schedule',
   {
     id: text('id').primaryKey(),
@@ -513,7 +520,7 @@ export const workflowSchedule = pgTable(
   }
 )
 
-export const webhook = pgTable(
+export const webhook = simEngine.table(
   'webhook',
   {
     id: text('id').primaryKey(),
@@ -552,7 +559,7 @@ export const notificationDeliveryStatusEnum = pgEnum('notification_delivery_stat
   'failed',
 ])
 
-export const workspaceNotificationSubscription = pgTable(
+export const workspaceNotificationSubscription = simEngine.table(
   'workspace_notification_subscription',
   {
     id: text('id').primaryKey(),
@@ -598,7 +605,7 @@ export const workspaceNotificationSubscription = pgTable(
   })
 )
 
-export const workspaceNotificationDelivery = pgTable(
+export const workspaceNotificationDelivery = simEngine.table(
   'workspace_notification_delivery',
   {
     id: text('id').primaryKey(),
@@ -631,7 +638,7 @@ export const workspaceNotificationDelivery = pgTable(
   })
 )
 
-export const apiKey = pgTable(
+export const apiKey = simEngine.table(
   'api_key',
   {
     id: text('id').primaryKey(),
@@ -663,7 +670,7 @@ export const billingBlockedReasonEnum = pgEnum('billing_blocked_reason', [
   'dispute',
 ])
 
-export const userStats = pgTable('user_stats', {
+export const userStats = simEngine.table('user_stats', {
   id: text('id').primaryKey(),
   userId: text('user_id')
     .notNull()
@@ -699,7 +706,7 @@ export const userStats = pgTable('user_stats', {
   billingBlockedReason: billingBlockedReasonEnum('billing_blocked_reason'),
 })
 
-export const customTools = pgTable(
+export const customTools = simEngine.table(
   'custom_tools',
   {
     id: text('id').primaryKey(),
@@ -720,7 +727,7 @@ export const customTools = pgTable(
   })
 )
 
-export const subscription = pgTable(
+export const subscription = simEngine.table(
   'subscription',
   {
     id: text('id').primaryKey(),
@@ -749,14 +756,14 @@ export const subscription = pgTable(
   })
 )
 
-export const rateLimitBucket = pgTable('rate_limit_bucket', {
+export const rateLimitBucket = simEngine.table('rate_limit_bucket', {
   key: text('key').primaryKey(),
   tokens: decimal('tokens').notNull(),
   lastRefillAt: timestamp('last_refill_at').notNull(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-export const chat = pgTable(
+export const chat = simEngine.table(
   'chat',
   {
     id: text('id').primaryKey(),
@@ -791,7 +798,7 @@ export const chat = pgTable(
   }
 )
 
-export const organization = pgTable('organization', {
+export const organization = simEngine.table('organization', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   slug: text('slug').notNull(),
@@ -805,7 +812,7 @@ export const organization = pgTable('organization', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
-export const member = pgTable(
+export const member = simEngine.table(
   'member',
   {
     id: text('id').primaryKey(),
@@ -824,7 +831,7 @@ export const member = pgTable(
   })
 )
 
-export const invitation = pgTable(
+export const invitation = simEngine.table(
   'invitation',
   {
     id: text('id').primaryKey(),
@@ -846,7 +853,7 @@ export const invitation = pgTable(
   })
 )
 
-export const workspace = pgTable('workspace', {
+export const workspace = simEngine.table('workspace', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   ownerId: text('owner_id')
@@ -860,7 +867,7 @@ export const workspace = pgTable('workspace', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-export const workspaceFile = pgTable(
+export const workspaceFile = simEngine.table(
   'workspace_file',
   {
     id: text('id').primaryKey(),
@@ -882,7 +889,7 @@ export const workspaceFile = pgTable(
   })
 )
 
-export const workspaceFiles = pgTable(
+export const workspaceFiles = simEngine.table(
   'workspace_files',
   {
     id: text('id').primaryKey(),
@@ -916,7 +923,7 @@ export const workspaceInvitationStatusEnum = pgEnum('workspace_invitation_status
 
 export type WorkspaceInvitationStatus = (typeof workspaceInvitationStatusEnum.enumValues)[number]
 
-export const workspaceInvitation = pgTable('workspace_invitation', {
+export const workspaceInvitation = simEngine.table('workspace_invitation', {
   id: text('id').primaryKey(),
   workspaceId: text('workspace_id')
     .notNull()
@@ -935,7 +942,7 @@ export const workspaceInvitation = pgTable('workspace_invitation', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-export const permissions = pgTable(
+export const permissions = simEngine.table(
   'permissions',
   {
     id: text('id').primaryKey(),
@@ -981,7 +988,7 @@ export const permissions = pgTable(
   })
 )
 
-export const memory = pgTable(
+export const memory = simEngine.table(
   'memory',
   {
     id: text('id').primaryKey(),
@@ -1006,7 +1013,7 @@ export const memory = pgTable(
   }
 )
 
-export const knowledgeBase = pgTable(
+export const knowledgeBase = simEngine.table(
   'knowledge_base',
   {
     id: text('id').primaryKey(),
@@ -1047,7 +1054,7 @@ export const knowledgeBase = pgTable(
   })
 )
 
-export const document = pgTable(
+export const document = simEngine.table(
   'document',
   {
     id: text('id').primaryKey(),
@@ -1136,7 +1143,7 @@ export const document = pgTable(
   })
 )
 
-export const knowledgeBaseTagDefinitions = pgTable(
+export const knowledgeBaseTagDefinitions = simEngine.table(
   'knowledge_base_tag_definitions',
   {
     id: text('id').primaryKey(),
@@ -1167,7 +1174,7 @@ export const knowledgeBaseTagDefinitions = pgTable(
   })
 )
 
-export const embedding = pgTable(
+export const embedding = simEngine.table(
   'embedding',
   {
     id: text('id').primaryKey(),
@@ -1283,7 +1290,7 @@ export const embedding = pgTable(
   })
 )
 
-export const docsEmbeddings = pgTable(
+export const docsEmbeddings = simEngine.table(
   'docs_embeddings',
   {
     chunkId: uuid('chunk_id').primaryKey().defaultRandom(),
@@ -1352,7 +1359,7 @@ export const docsEmbeddings = pgTable(
   })
 )
 
-export const copilotChats = pgTable(
+export const copilotChats = simEngine.table(
   'copilot_chats',
   {
     id: uuid('id').primaryKey().defaultRandom(),
@@ -1384,7 +1391,7 @@ export const copilotChats = pgTable(
   })
 )
 
-export const workflowCheckpoints = pgTable(
+export const workflowCheckpoints = simEngine.table(
   'workflow_checkpoints',
   {
     id: uuid('id').primaryKey().defaultRandom(),
@@ -1431,7 +1438,7 @@ export const workflowCheckpoints = pgTable(
 export const templateStatusEnum = pgEnum('template_status', ['pending', 'approved', 'rejected'])
 export const templateCreatorTypeEnum = pgEnum('template_creator_type', ['user', 'organization'])
 
-export const templateCreators = pgTable(
+export const templateCreators = simEngine.table(
   'template_creators',
   {
     id: text('id').primaryKey(),
@@ -1455,7 +1462,7 @@ export const templateCreators = pgTable(
   })
 )
 
-export const templates = pgTable(
+export const templates = simEngine.table(
   'templates',
   {
     id: text('id').primaryKey(),
@@ -1492,7 +1499,7 @@ export const templates = pgTable(
   })
 )
 
-export const templateStars = pgTable(
+export const templateStars = simEngine.table(
   'template_stars',
   {
     id: text('id').primaryKey(),
@@ -1529,7 +1536,7 @@ export const templateStars = pgTable(
   })
 )
 
-export const copilotFeedback = pgTable(
+export const copilotFeedback = simEngine.table(
   'copilot_feedback',
   {
     feedbackId: uuid('feedback_id').primaryKey().defaultRandom(),
@@ -1562,7 +1569,7 @@ export const copilotFeedback = pgTable(
 )
 
 // Tracks immutable deployment versions for each workflow
-export const workflowDeploymentVersion = pgTable(
+export const workflowDeploymentVersion = simEngine.table(
   'workflow_deployment_version',
   {
     id: text('id').primaryKey(),
@@ -1590,7 +1597,7 @@ export const workflowDeploymentVersion = pgTable(
 )
 
 // Idempotency keys for preventing duplicate processing across all webhooks and triggers
-export const idempotencyKey = pgTable(
+export const idempotencyKey = simEngine.table(
   'idempotency_key',
   {
     key: text('key').notNull(),
@@ -1610,7 +1617,7 @@ export const idempotencyKey = pgTable(
   })
 )
 
-export const mcpServers = pgTable(
+export const mcpServers = simEngine.table(
   'mcp_servers',
   {
     id: text('id').primaryKey(),
@@ -1664,7 +1671,7 @@ export const mcpServers = pgTable(
 )
 
 // SSO Provider table
-export const ssoProvider = pgTable(
+export const ssoProvider = simEngine.table(
   'sso_provider',
   {
     id: text('id').primaryKey(),
@@ -1688,65 +1695,11 @@ export const ssoProvider = pgTable(
   })
 )
 
-/**
- * Workflow MCP Servers - User-created MCP servers that expose workflows as tools.
- * These servers are accessible by external MCP clients via API key authentication.
- */
-export const workflowMcpServer = pgTable(
-  'workflow_mcp_server',
-  {
-    id: text('id').primaryKey(),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
-    createdBy: text('created_by')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    name: text('name').notNull(),
-    description: text('description'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    workspaceIdIdx: index('workflow_mcp_server_workspace_id_idx').on(table.workspaceId),
-    createdByIdx: index('workflow_mcp_server_created_by_idx').on(table.createdBy),
-  })
-)
-
-/**
- * Workflow MCP Tools - Workflows registered as tools within a Workflow MCP Server.
- * Each tool maps to a deployed workflow's execute endpoint.
- */
-export const workflowMcpTool = pgTable(
-  'workflow_mcp_tool',
-  {
-    id: text('id').primaryKey(),
-    serverId: text('server_id')
-      .notNull()
-      .references(() => workflowMcpServer.id, { onDelete: 'cascade' }),
-    workflowId: text('workflow_id')
-      .notNull()
-      .references(() => workflow.id, { onDelete: 'cascade' }),
-    toolName: text('tool_name').notNull(),
-    toolDescription: text('tool_description'),
-    parameterSchema: json('parameter_schema').notNull().default('{}'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    serverIdIdx: index('workflow_mcp_tool_server_id_idx').on(table.serverId),
-    workflowIdIdx: index('workflow_mcp_tool_workflow_id_idx').on(table.workflowId),
-    serverWorkflowUnique: uniqueIndex('workflow_mcp_tool_server_workflow_unique').on(
-      table.serverId,
-      table.workflowId
-    ),
-  })
-)
-
+// Usage logging for tracking individual billable operations
 export const usageLogCategoryEnum = pgEnum('usage_log_category', ['model', 'fixed'])
 export const usageLogSourceEnum = pgEnum('usage_log_source', ['workflow', 'wand', 'copilot'])
 
-export const usageLog = pgTable(
+export const usageLog = simEngine.table(
   'usage_log',
   {
     id: text('id').primaryKey(),
@@ -1754,26 +1707,38 @@ export const usageLog = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
 
+    // Charge category: 'model' (token-based) or 'fixed' (flat fee)
     category: usageLogCategoryEnum('category').notNull(),
 
+    // What generated this charge: 'workflow', 'wand', 'copilot'
     source: usageLogSourceEnum('source').notNull(),
 
+    // For model charges: model name (e.g., 'gpt-4o', 'claude-4.5-opus')
+    // For fixed charges: charge type (e.g., 'execution_fee', 'search_query')
     description: text('description').notNull(),
 
+    // Category-specific metadata (e.g., tokens for 'model' category)
     metadata: jsonb('metadata'),
 
+    // Cost in USD
     cost: decimal('cost').notNull(),
 
+    // Optional context references
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'set null' }),
     workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
     executionId: text('execution_id'),
 
+    // Timestamp
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
+    // Index for querying user's usage history (most common query)
     userCreatedAtIdx: index('usage_log_user_created_at_idx').on(table.userId, table.createdAt),
+    // Index for filtering by source
     sourceIdx: index('usage_log_source_idx').on(table.source),
+    // Index for workspace-specific queries
     workspaceIdIdx: index('usage_log_workspace_id_idx').on(table.workspaceId),
+    // Index for workflow-specific queries
     workflowIdIdx: index('usage_log_workflow_id_idx').on(table.workflowId),
   })
 )

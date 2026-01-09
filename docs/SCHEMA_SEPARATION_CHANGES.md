@@ -1,0 +1,404 @@
+# Schema Separation Changes - SaaS Integration
+
+## 📋 Summary
+
+This document explains the changes made to `schema.ts` and `drizzle.config.ts` to allow Sim.ai to use a separate PostgreSQL schema (`sim_engine`) instead of the default public schema.
+
+**Date**: 2026-01-02
+**Purpose**: Integrate Sim.ai with a multi-tenant SaaS while maintaining data isolation
+
+---
+
+## 🎯 Why separate schemas?
+
+### Original Problem
+
+By default, Sim.ai creates all its tables in PostgreSQL's `public` schema:
+
+```sql
+CREATE TABLE public.user (...);
+CREATE TABLE public.workflow (...);
+CREATE TABLE public.workspace (...);
+-- etc...
+```
+
+This presents problems when integrating with a SaaS:
+
+1. **Table collision**: The SaaS may have its own `users`, `organizations`, etc. tables
+2. **Coupling**: SaaS business logic mixes with workflow engine logic
+3. **Maintenance difficulty**: Changes in one affect the other
+4. **Scalability**: Difficult to manage permissions and independent backups
+
+### Solution: Schema Separation
+
+Use PostgreSQL schemas to isolate:
+
+- **`public` schema**: SaaS tables (organizations, phone_numbers, conversations, etc.)
+- **`sim_engine` schema**: Sim.ai tables (user, workflow, workspace, etc.)
+
+```sql
+-- SaaS tables
+CREATE TABLE public.organizations (...);
+CREATE TABLE public.conversations (...);
+
+-- Sim.ai tables (isolated)
+CREATE TABLE sim_engine.user (...);
+CREATE TABLE sim_engine.workflow (...);
+CREATE TABLE sim_engine.workspace (...);
+```
+
+---
+
+## 🔧 Change 1: `packages/db/schema.ts`
+
+### What changed?
+
+**BEFORE** (default public schema):
+```typescript
+import { pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+
+export const user = pgTable('user', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  email: text('email').notNull().unique(),
+  // ...
+})
+
+export const workflow = pgTable('workflow', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  // ...
+})
+```
+
+**AFTER** (`sim_engine` schema):
+```typescript
+import { pgSchema, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+
+// 1. Create schema reference
+export const simEngine = pgSchema('sim_engine')
+
+// 2. Use simEngine.table() instead of pgTable()
+export const user = simEngine.table('user', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  email: text('email').notNull().unique(),
+  // ...
+})
+
+export const workflow = simEngine.table('workflow', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  // ...
+})
+```
+
+### Steps performed:
+
+1. **Import `pgSchema`**:
+   ```typescript
+   import { pgSchema, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+   ```
+
+2. **Create schema reference**:
+   ```typescript
+   export const simEngine = pgSchema('sim_engine')
+   ```
+
+3. **Replace all table definitions**:
+   - From: `pgTable('table_name', { ... })`
+   - To: `simEngine.table('table_name', { ... })`
+
+   Using sed command:
+   ```bash
+   sed -i 's/export const \(.*\) = pgTable(/export const \1 = simEngine.table(/g' schema.ts
+   ```
+
+4. **Verification**: All ~50+ tables now use `simEngine.table()`
+
+### Why this change?
+
+- **Namespace isolation**: All Sim.ai tables live in `sim_engine.*`
+- **No collisions**: `public.user` (SaaS) and `sim_engine.user` (Sim.ai) coexist
+- **Explicit queries**: `SELECT * FROM sim_engine.workflow` is clear and explicit
+- **Granular permissions**: You can grant permissions only to `sim_engine` schema
+
+---
+
+## 🔧 Change 2: `packages/db/drizzle.config.ts`
+
+### What changed?
+
+**BEFORE** (no schema filter):
+```typescript
+import type { Config } from 'drizzle-kit'
+
+export default {
+  schema: './schema.ts',
+  out: './migrations',
+  dialect: 'postgresql',
+  dbCredentials: {
+    url: process.env.DATABASE_URL!,
+  },
+} satisfies Config
+```
+
+**AFTER** (with schema filter):
+```typescript
+import type { Config } from 'drizzle-kit'
+
+export default {
+  schema: './schema.ts',
+  out: './migrations',
+  dialect: 'postgresql',
+  dbCredentials: {
+    url: process.env.DATABASE_URL!,
+  },
+  schemaFilter: ['sim_engine'], // ← NEW
+} satisfies Config
+```
+
+### Why this change?
+
+The `schemaFilter` option tells Drizzle Kit:
+
+1. **Migrations**: When generating migrations with `drizzle-kit generate`, only consider tables in `sim_engine`
+2. **Push**: When doing `drizzle-kit push`, only sync the `sim_engine` schema
+3. **Introspection**: When doing `drizzle-kit introspect`, only read tables from `sim_engine`
+
+**Without `schemaFilter`**, Drizzle would try to manage ALL database tables, including SaaS ones in `public`, which would cause conflicts.
+
+### Practical example:
+
+```bash
+# With schemaFilter: ['sim_engine']
+$ drizzle-kit push
+✅ Syncs only sim_engine tables
+✅ Ignores public tables (from SaaS)
+
+# Without schemaFilter
+$ drizzle-kit push
+❌ Tries to sync ALL tables
+❌ Conflicts with SaaS tables
+```
+
+---
+
+## 🗂️ Impact on Generated SQL
+
+### Queries generated by Drizzle ORM
+
+**BEFORE**:
+```sql
+-- Automatically generated query
+SELECT * FROM "user" WHERE "user"."id" = $1;
+```
+
+**AFTER**:
+```sql
+-- Automatically generated query (with schema)
+SELECT * FROM "sim_engine"."user" WHERE "sim_engine"."user"."id" = $1;
+```
+
+### Generated migrations
+
+**BEFORE** (`drizzle-kit generate`):
+```sql
+CREATE TABLE "user" (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL
+);
+```
+
+**AFTER** (`drizzle-kit generate`):
+```sql
+CREATE TABLE "sim_engine"."user" (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL
+);
+```
+
+---
+
+## ✅ Change Verification
+
+### 1. Verify schema.ts uses simEngine
+
+```bash
+grep -c "simEngine.table" packages/db/schema.ts
+# Should return: 50+ (all tables)
+
+grep -c "= pgTable(" packages/db/schema.ts
+# Should return: 0 (no table uses pgTable directly)
+```
+
+### 2. Verify drizzle.config.ts
+
+```bash
+grep "schemaFilter" packages/db/drizzle.config.ts
+# Should show: schemaFilter: ['sim_engine'],
+```
+
+### 3. Test DB connection
+
+```bash
+cd packages/db
+bun run drizzle-kit introspect
+# Should list only sim_engine tables
+```
+
+---
+
+## 🔗 Supabase Integration
+
+### Migrations in Supabase
+
+Migrations created in `chatbot-saas-frontend/supabase/migrations/` create the schema:
+
+```sql
+-- 20250202000000_create_sim_engine_schema.sql
+CREATE SCHEMA IF NOT EXISTS sim_engine;
+
+CREATE TABLE sim_engine.user (
+  id TEXT PRIMARY KEY,
+  -- ...
+);
+
+CREATE TABLE sim_engine.workspace (
+  id TEXT PRIMARY KEY,
+  -- ...
+);
+
+-- Mapping between schemas
+ALTER TABLE public.organizations
+ADD COLUMN sim_workspace_id TEXT REFERENCES sim_engine.workspace(id);
+```
+
+### Environment variables
+
+```env
+# packages/db/.env
+DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+
+# Connection points to same DB, but Drizzle uses sim_engine automatically
+```
+
+---
+
+## 📊 Final Architecture
+
+```
+PostgreSQL Database
+│
+├── public schema (SaaS)
+│   ├── organizations
+│   │   └── sim_workspace_id → references sim_engine.workspace
+│   ├── users (from SaaS)
+│   ├── phone_numbers
+│   ├── conversations
+│   └── workflow_configs
+│
+└── sim_engine schema (Sim.ai)
+    ├── user (from Sim.ai, separate from SaaS)
+    ├── workspace
+    ├── workflow
+    ├── workflow_blocks
+    ├── workflow_edges
+    ├── workflow_execution_logs
+    └── ... (50+ tables)
+```
+
+---
+
+## 🎯 Benefits Achieved
+
+| Aspect | Before | After |
+|---------|-------|---------|
+| **Namespace** | Everything in `public` | SaaS in `public`, Sim.ai in `sim_engine` |
+| **Collisions** | Possible name conflicts | No conflicts |
+| **Migrations** | Mixed | Separated by schema |
+| **Permissions** | All or nothing | Granular by schema |
+| **Backups** | Everything together | Possible backup by schema |
+| **Rollback** | Affects everything | Only affects Sim.ai |
+| **Maintenance** | Coupled | Decoupled |
+
+---
+
+## 📄 Maintenance Commands
+
+### Generate new migration
+
+```bash
+cd packages/db
+bun run drizzle-kit generate
+# Generates SQL only for changes in sim_engine
+```
+
+### Apply migrations (Supabase)
+
+```bash
+cd ../../chatbot-saas-frontend
+supabase db reset
+# Applies all migrations including sim_engine
+```
+
+### Sync schema directly (development)
+
+```bash
+cd packages/db
+bun run drizzle-kit push
+# Syncs schema.ts → sim_engine (development only)
+```
+
+---
+
+## ⚠️ Important Considerations
+
+1. **Don't mix commands**:
+   - Use `supabase migration` for `sim_engine` changes if using Supabase
+   - Use `drizzle-kit` only for local development without Supabase
+
+2. **Cross-schema references**:
+   ```typescript
+   // ✅ CORRECT: reference between schemas
+   ALTER TABLE public.organizations
+   ADD COLUMN sim_workspace_id TEXT
+   REFERENCES sim_engine.workspace(id);
+
+   // ❌ DON'T create foreign keys from sim_engine to public
+   // Keep Sim.ai independent from SaaS
+   ```
+
+3. **Permissions**:
+   ```sql
+   -- Grant permissions to entire schema
+   GRANT USAGE ON SCHEMA sim_engine TO authenticated;
+   GRANT ALL ON ALL TABLES IN SCHEMA sim_engine TO authenticated;
+   ```
+
+---
+
+## 📚 References
+
+- [PostgreSQL Schemas Documentation](https://www.postgresql.org/docs/current/ddl-schemas.html)
+- [Drizzle ORM pgSchema](https://orm.drizzle.team/docs/schemas)
+- [Drizzle Kit schemaFilter](https://orm.drizzle.team/kit-docs/config-reference#schemafilter)
+- [Supabase Multiple Schemas](https://supabase.com/docs/guides/database/schemas)
+
+---
+
+## ✅ Verification Checklist
+
+- [x] `schema.ts` imports `pgSchema`
+- [x] All tables use `simEngine.table()`
+- [x] `drizzle.config.ts` has `schemaFilter: ['sim_engine']`
+- [x] Supabase migrations create `sim_engine` schema
+- [x] Environment variables point to correct DB
+- [x] Sim.ai starts without DB errors
+- [x] Queries use `sim_engine.*` in logs
+
+---
+
+**Last updated**: 2026-01-02
+**Author**: Claude Code
+**Status**: ✅ Completed and working

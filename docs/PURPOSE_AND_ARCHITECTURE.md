@@ -36,48 +36,73 @@ A separate fork was created instead of using Sim.ai directly because:
 ### Global Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                    Supabase PostgreSQL                        │
-├──────────────────────────────────────────────────────────────┤
-│                                                               │
-│  ┌─────────────────────┐         ┌──────────────────────┐   │
-│  │   public schema     │         │  sim_engine schema   │   │
-│  │   (SaaS Tables)     │◄────┐   │  (Sim.ai Tables)     │   │
-│  └─────────────────────┘     │   └──────────────────────┘   │
-│                               │                               │
-│  • organizations ─────────────┘                               │
-│    - sim_workspace_id ────────────► workspace                 │
-│  • users (SaaS)                     • user (Sim.ai)           │
-│  • phone_numbers                    • workflow                │
-│  • conversations                    • workflow_blocks         │
-│  • messages                         • workflow_edges          │
-│  • workflow_configs                 • workflow_executions     │
-│                                     • settings                │
-│                                     • api_key                 │
-└──────────────────────────────────────────────────────────────┘
-         ▲                                      ▲
-         │                                      │
-         │                                      │
-┌────────┴─────────────┐           ┌───────────┴──────────────┐
-│  chatbot-saas-       │           │  chatbot-saas-sim        │
-│  frontend            │           │  (Sim.ai Fork)           │
-│                      │           │                          │
-│  Next.js App         │◄─────────►│  Next.js App             │
-│  • Supabase Auth     │   API     │  • Better Auth           │
-│  • SaaS UI           │           │  • Workflow Canvas       │
-│  • Org Management    │           │  • Workflow Execution    │
-│  • WhatsApp Manager  │           │  • Visual Editor         │
-└──────────────────────┘           └──────────────────────────┘
-         │                                      │
-         │                                      │
-         ▼                                      ▼
-┌──────────────────────────────────────────────────────────────┐
-│                      WhatsApp Business API                    │
-│                   (Twilio / Meta Cloud API)                   │
-└──────────────────────────────────────────────────────────────┘
+                        ┌──────────────────┐
+                        │  WhatsApp Users  │
+                        └────────┬─────────┘
+                                 │
+                                 ▼
+                    ┌────────────────────────┐
+                    │   Meta Cloud API       │
+                    │  (WhatsApp Business)   │
+                    └────────────┬───────────┘
+                                 │ Webhook
+                                 ▼
+┌────────────────────────────────────────────────────────────────────┐
+│                    FastAPI Backend (BRAIN)                          │
+│                    whatsapp-bot-saas/backend                        │
+│  ┌────────────────────────────────────────────────────────────┐   │
+│  │  • Receives ALL webhooks from Meta                          │   │
+│  │  • Pipeline: Keywords → Sim.ai → MVP → Fallback            │   │
+│  │  • Manages conversation context (Redis)                     │   │
+│  │  • Sends responses via WhatsApp API                        │   │
+│  └────────────────────────────────────────────────────────────┘   │
+└───────────┬────────────────────────────────┬──────────────────────┘
+            │                                │
+            ▼                                ▼
+┌───────────────────────┐         ┌───────────────────────────┐
+│       Redis           │         │    chatbot-saas-sim       │
+│  (Context/Messages)   │         │    (Sim.ai Fork)          │
+│  • 24h TTL            │         │                           │
+│  • Last 10 messages   │         │  • Visual Workflow Editor │
+└───────────────────────┘         │  • AI Blocks (GPT/Claude) │
+                                  │  • Workflow Execution     │
+                                  └─────────────┬─────────────┘
+                                                │
+┌───────────────────────────────────────────────┴───────────────────┐
+│                      Supabase PostgreSQL                           │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌─────────────────────────┐       ┌──────────────────────────┐   │
+│  │   public schema         │       │   sim_engine schema      │   │
+│  │   (SaaS Tables)         │       │   (Sim.ai Tables)        │   │
+│  └─────────────────────────┘       └──────────────────────────┘   │
+│                                                                     │
+│  • organizations ◄─────────────────► workspace                     │
+│    - sim_workspace_id                                               │
+│  • users (SaaS)                       • user (Sim.ai)              │
+│  • phone_numbers                      • workflow                   │
+│  • conversations                      • workflow_blocks            │
+│  • keyword_responses                  • workflow_edges             │
+│  • workflow_configs                   • workflow_executions        │
+│                                       • settings                   │
+└────────────────────────────────────────────────────────────────────┘
+            ▲
+            │
+┌───────────┴───────────┐
+│  chatbot-saas-        │
+│  frontend             │
+│                       │
+│  Next.js App          │
+│  • Supabase Auth      │
+│  • SaaS Admin UI      │
+│  • Org Management     │
+│  • Embedded Sim.ai    │
+└───────────────────────┘
 ```
 
 ### Workflow Flow
+
+> **📖 For detailed message flow diagrams, see [MESSAGE_FLOW_ARCHITECTURE.md](./MESSAGE_FLOW_ARCHITECTURE.md)**
 
 1. **SaaS user creates an organization** in `chatbot-saas-frontend`
    - A record is created in `public.organizations`
@@ -94,12 +119,18 @@ A separate fork was created instead of using Sim.ai directly because:
    - Selects which workflow to execute for conversations
    - Configures triggers (keywords, schedules, webhooks)
 
-4. **WhatsApp message arrives**
-   - WhatsApp webhook reaches the SaaS frontend
-   - Frontend identifies the organization and configured workflow
-   - Corresponding workflow is executed in Sim.ai
-   - The workflow can:
-     - Respond automatically
+4. **WhatsApp message arrives** → **FastAPI Backend (Brain)**
+   - Meta webhook reaches **FastAPI** at `/api/v1/webhook`
+   - FastAPI verifies signature and identifies organization
+   - Gets conversation context from Redis
+   - **Response Pipeline** (first match wins):
+     - 1️⃣ **Keywords** → immediate response from DB
+     - 2️⃣ **Sim.ai** → executes visual workflow
+     - 3️⃣ **MVP workflow** → local fallback workflows
+     - 4️⃣ **Fallback** → default response
+   - FastAPI sends response via WhatsApp API
+   - Sim.ai workflows can:
+     - Use AI (Claude, GPT) for intelligent responses
      - Query databases
      - Call external APIs
      - Make AI-based decisions
@@ -455,11 +486,15 @@ CREATE POLICY "Users can only access their workspace data"
 - ✅ Schema separation implemented
 - ✅ Core table migrations completed
 - ✅ Organizations ↔ workspaces mapping
+- ✅ FastAPI as central webhook handler
+- ✅ OpenAI removed from FastAPI (AI handled by Sim.ai)
+- ✅ Response pipeline: Keywords → Sim.ai → MVP → Fallback
+- ✅ Configurable WHATSAPP_API_URL for testing/emulation
 - 🔄 SaaS ↔ Sim.ai API integration (in progress)
 
 ### Next Steps
-1. **Unified authentication**: SSO between SaaS and Sim.ai
-2. **Embedded UI**: Embed Sim.ai canvas in SaaS frontend
+1. **Embedded UI**: Embed Sim.ai canvas in SaaS frontend
+2. **Unified authentication**: SSO between SaaS and Sim.ai
 3. **Workflow templates**: Library of pre-built workflows
 4. **Analytics dashboard**: Real-time usage metrics
 
@@ -492,6 +527,6 @@ CREATE POLICY "Users can only access their workspace data"
 
 ---
 
-**Last updated**: 2026-01-08
+**Last updated**: 2026-02-04
 **Author**: Claude Code
-**Status**: ✅ Complete documentation
+**Status**: ✅ Updated with FastAPI as central webhook handler

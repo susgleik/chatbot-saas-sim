@@ -39,7 +39,9 @@ export const sendMessageTool: ToolConfig<WhatsAppSendMessageParams, WhatsAppResp
       if (!params.phoneNumberId) {
         throw new Error('WhatsApp Phone Number ID is required')
       }
-      return `https://graph.facebook.com/v22.0/${params.phoneNumberId}/messages`
+      // Allow custom API URL for testing/emulation (defaults to Meta's API)
+      const baseUrl = process.env.WHATSAPP_API_URL || 'https://graph.facebook.com'
+      return `${baseUrl}/v22.0/${params.phoneNumberId}/messages`
     },
     method: 'POST',
     headers: (params) => {

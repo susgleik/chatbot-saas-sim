@@ -97,7 +97,10 @@ app:
     ANTHROPIC_API_KEY_3: ""                               # Additional Anthropic API key for load balancing
     OLLAMA_URL: ""                                        # Ollama local LLM server URL
     ELEVENLABS_API_KEY: ""                                # ElevenLabs API key for text-to-speech in deployed chat
-    
+
+    # WhatsApp API Configuration (optional - for testing/emulation)
+    WHATSAPP_API_URL: ""                                  # Custom WhatsApp API URL (defaults to https://graph.facebook.com)
+
     # Rate Limiting Configuration (per minute)
     RATE_LIMIT_WINDOW_MS: "60000"                         # Rate limit window duration (1 minute)
     RATE_LIMIT_FREE_SYNC: "10"                            # Sync API executions per minute

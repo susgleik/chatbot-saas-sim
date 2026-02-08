@@ -111,6 +111,7 @@ export function useCollaborativeWorkflow() {
     }
   }, [undoRedo])
   const {
+    socket,
     isConnected,
     currentWorkflowId,
     presenceUsers,
@@ -176,14 +177,17 @@ export function useCollaborativeWorkflow() {
   }, [activeWorkflowId, isConnected, currentWorkflowId])
 
   // Register emit functions with operation queue store
+  // When socket is null (disabled), pass socketDisabled=true so operations auto-confirm locally
+  const socketDisabled = !socket
   useEffect(() => {
     registerEmitFunctions(
       emitWorkflowOperation,
       emitSubblockUpdate,
       emitVariableUpdate,
-      currentWorkflowId
+      currentWorkflowId,
+      socketDisabled
     )
-  }, [emitWorkflowOperation, emitSubblockUpdate, emitVariableUpdate, currentWorkflowId])
+  }, [emitWorkflowOperation, emitSubblockUpdate, emitVariableUpdate, currentWorkflowId, socketDisabled])
 
   useEffect(() => {
     const handleWorkflowOperation = (data: any) => {

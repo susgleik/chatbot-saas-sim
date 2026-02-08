@@ -487,14 +487,28 @@ CREATE POLICY "Users can only access their workspace data"
 - ✅ Core table migrations completed
 - ✅ Organizations ↔ workspaces mapping
 - ✅ FastAPI as central webhook handler
-- ✅ OpenAI removed from FastAPI (AI handled by Sim.ai)
-- ✅ Response pipeline: Keywords → Sim.ai → MVP → Fallback
+- ✅ Response pipeline: Keywords → Workflows → Fallback
 - ✅ Configurable WHATSAPP_API_URL for testing/emulation
-- 🔄 SaaS ↔ Sim.ai API integration (in progress)
+- 🔄 **FastAPI Workflow Executor** (in progress) - [See FASTAPI_WORKFLOW_EXECUTOR.md](./FASTAPI_WORKFLOW_EXECUTOR.md)
+
+### Architecture Decision: FastAPI Executes Workflows
+> **Important**: Sim.ai is now **UI-only** for designing workflows. FastAPI reads workflow definitions from the database and executes them directly. This reduces costs (~$11/mes vs ~$25/mes) and latency.
+
+See [FASTAPI_WORKFLOW_EXECUTOR.md](./FASTAPI_WORKFLOW_EXECUTOR.md) for implementation details.
+
+**Supported blocks (MVP)**:
+- `agent` - AI calls (OpenAI, Claude)
+- `api` - HTTP requests
+- `condition` - if/else logic
+- `function` - JavaScript execution
+- `loop` - Iteration
+- `postgresql` - Database queries
+- `gmail` - Email sending
+- `response` - WhatsApp response formatting
 
 ### Next Steps
-1. **Embedded UI**: Embed Sim.ai canvas in SaaS frontend
-2. **Unified authentication**: SSO between SaaS and Sim.ai
+1. **Implement Workflow Executor** in FastAPI (see plan doc)
+2. **Embedded UI**: Embed Sim.ai canvas in SaaS frontend (scale-to-zero)
 3. **Workflow templates**: Library of pre-built workflows
 4. **Analytics dashboard**: Real-time usage metrics
 

@@ -12,7 +12,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { io, type Socket } from 'socket.io-client'
-import { getEnv } from '@/lib/core/config/env'
+import { getEnv, isFalsy } from '@/lib/core/config/env'
 
 const logger = createLogger('SocketContext')
 
@@ -146,9 +146,27 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     return token
   }
 
+  // When socket is disabled, still track the current workflow from URL
+  // so that isInActiveRoom() works and local operations can proceed
+  useEffect(() => {
+    if (!isFalsy(getEnv('NEXT_PUBLIC_SOCKET_ENABLED'))) return
+    if (!urlWorkflowId) return
+
+    if (currentWorkflowId !== urlWorkflowId) {
+      logger.info(`Socket disabled - setting currentWorkflowId from URL: ${urlWorkflowId}`)
+      setCurrentWorkflowId(urlWorkflowId)
+    }
+  }, [urlWorkflowId, currentWorkflowId])
+
   // Initialize socket when user is available - only once per session
   useEffect(() => {
     if (!user?.id) return
+
+    // Skip socket initialization if explicitly disabled via env var
+    if (isFalsy(getEnv('NEXT_PUBLIC_SOCKET_ENABLED'))) {
+      logger.info('Socket disabled via NEXT_PUBLIC_SOCKET_ENABLED=false')
+      return
+    }
 
     // Only initialize if we don't have a socket and aren't already connecting
     if (initializedRef.current || socket || isConnecting) {

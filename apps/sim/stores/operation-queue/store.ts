@@ -49,16 +49,20 @@ let emitVariableUpdate:
   | ((variableId: string, field: string, value: any, operationId?: string) => void)
   | null = null
 
+let isSocketDisabled = false
+
 export function registerEmitFunctions(
   workflowEmit: (operation: string, target: string, payload: any, operationId?: string) => void,
   subblockEmit: (blockId: string, subblockId: string, value: any, operationId?: string) => void,
   variableEmit: (variableId: string, field: string, value: any, operationId?: string) => void,
-  workflowId: string | null
+  workflowId: string | null,
+  socketDisabled?: boolean
 ) {
   emitWorkflowOperation = workflowEmit
   emitSubblockUpdate = subblockEmit
   emitVariableUpdate = variableEmit
   currentRegisteredWorkflowId = workflowId
+  isSocketDisabled = !!socketDisabled
 }
 
 let currentRegisteredWorkflowId: string | null = null
@@ -335,6 +339,16 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       operation: nextOperation.operation,
       retryCount: nextOperation.retryCount,
     })
+
+    // When socket is disabled, auto-confirm immediately
+    // Operations have already been applied locally, so just remove from queue
+    if (isSocketDisabled) {
+      logger.debug('Socket disabled - auto-confirming operation locally', {
+        operationId: nextOperation.id,
+      })
+      get().confirmOperation(nextOperation.id)
+      return
+    }
 
     // Emit the operation
     const { operation: op, target, payload } = nextOperation.operation

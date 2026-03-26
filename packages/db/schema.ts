@@ -1742,3 +1742,52 @@ export const usageLog = simEngine.table(
     workflowIdIdx: index('usage_log_workflow_id_idx').on(table.workflowId),
   })
 )
+
+// MCP Server for workflow-as-tool functionality
+export const workflowMcpServer = simEngine.table(
+  'workflow_mcp_server',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceIdIdx: index('workflow_mcp_server_workspace_id_idx').on(table.workspaceId),
+    createdByIdx: index('workflow_mcp_server_created_by_idx').on(table.createdBy),
+  })
+)
+
+// MCP Tool linking a workflow to an MCP server
+export const workflowMcpTool = simEngine.table(
+  'workflow_mcp_tool',
+  {
+    id: text('id').primaryKey(),
+    serverId: text('server_id')
+      .notNull()
+      .references(() => workflowMcpServer.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    toolName: text('tool_name').notNull(),
+    toolDescription: text('tool_description'),
+    parameterSchema: json('parameter_schema').notNull().default({}),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    serverIdIdx: index('workflow_mcp_tool_server_id_idx').on(table.serverId),
+    workflowIdIdx: index('workflow_mcp_tool_workflow_id_idx').on(table.workflowId),
+    serverWorkflowUnique: uniqueIndex('workflow_mcp_tool_server_workflow_unique').on(
+      table.serverId,
+      table.workflowId
+    ),
+  })
+)

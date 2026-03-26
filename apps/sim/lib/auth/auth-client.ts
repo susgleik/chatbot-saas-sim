@@ -16,6 +16,7 @@ import { SessionContext, type SessionHookResult } from '@/app/_shell/providers/s
 
 export const client = createAuthClient({
   baseURL: getBaseUrl(),
+  basePath: '/sim/api/auth',
   plugins: [
     emailOTPClient(),
     genericOAuthClient(),

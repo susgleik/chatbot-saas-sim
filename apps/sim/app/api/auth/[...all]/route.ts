@@ -10,10 +10,15 @@ const { GET: betterAuthGET, POST: betterAuthPOST } = toNextJsHandler(auth.handle
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url)
-  const path = url.pathname.replace('/api/auth/', '')
+  // Use split to handle basePath prefix (/sim/api/auth/... or /api/auth/...)
+  const path = url.pathname.split('/api/auth/').pop() ?? ''
 
   if (path === 'get-session' && isAuthDisabled) {
-    await ensureAnonymousUserExists()
+    try {
+      await ensureAnonymousUserExists()
+    } catch (err) {
+      console.error('[auth route] ensureAnonymousUserExists failed:', err)
+    }
     return NextResponse.json(createAnonymousSession())
   }
 

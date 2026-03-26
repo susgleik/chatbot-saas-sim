@@ -56,6 +56,7 @@ import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
+import { useAutoSaveWorkflow } from '@/hooks/use-auto-save-workflow'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
 import { useChatStore } from '@/stores/chat/store'
@@ -424,6 +425,9 @@ const WorkflowContent = React.memo(() => {
     undo,
     redo,
   } = useCollaborativeWorkflow()
+
+  // Auto-save workflow to DB when socket is disabled (no socket server to persist operations)
+  useAutoSaveWorkflow()
 
   const updateBlockPosition = useCallback(
     (id: string, position: { x: number; y: number }) => {

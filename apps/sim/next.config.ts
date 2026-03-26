@@ -4,6 +4,7 @@ import { isDev, isHosted } from './lib/core/config/feature-flags'
 import { getMainCSPPolicy, getWorkflowExecutionCSPPolicy } from './lib/core/security/csp'
 
 const nextConfig: NextConfig = {
+  basePath: '/sim',
   devIndicators: false,
   images: {
     remotePatterns: [
@@ -122,8 +123,11 @@ const nextConfig: NextConfig = {
         headers: [
           { key: 'Access-Control-Allow-Credentials', value: 'true' },
           {
+            // In dev allow both the direct port and the frontend proxy origin
             key: 'Access-Control-Allow-Origin',
-            value: env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001',
+            value: isDev
+              ? 'http://localhost:3000'
+              : env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001',
           },
           {
             key: 'Access-Control-Allow-Methods',
